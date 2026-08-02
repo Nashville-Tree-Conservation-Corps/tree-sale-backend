@@ -38,6 +38,9 @@ app.get('/api/orders', async (req, res) => {
             state: order.shippingAddress.state,
             date: order.createdOn,
             status: order.fulfillmentStatus,
+            includesPlanting: order.lineItems.some(item => 
+                item.productName.toLowerCase().includes("planting")
+            ),
             items: order.lineItems.map(item => ({
                 name: item.productName,
                 quantity: item.quantity,
@@ -80,6 +83,9 @@ app.get('/api/orders/:id', async (req, res) => {
             state: order.shippingAddress.state,
             date: order.createdOn,
             status: order.fulfillmentStatus,
+            includesPlanting: order.lineItems.some(item => 
+                item.productName.toLowerCase().includes("planting")
+            ),
             notes: order.internalNotes?.map(n => n.content).join(", ") || "No notes",
             items: order.lineItems.map(item => ({
                 name: item.productName,
@@ -122,6 +128,9 @@ app.get('/api/customers/:customerId/orders', async (req, res) => {
             state: order.shippingAddress.state,
             date: order.createdOn,
             status: order.fulfillmentStatus,
+            includesPlanting: order.lineItems.some(item =>   // ← Add this
+                item.productName.toLowerCase().includes("planting")
+            ),
             items: order.lineItems.map(item => ({
                 name: item.productName,
                 quantity: item.quantity,
