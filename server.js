@@ -41,6 +41,7 @@ app.get('/api/orders', async (req, res) => {
             includesPlanting: order.lineItems.some(item => 
                 item.productName.toLowerCase().includes("planting")
             ),
+            hasDiscount: order.discountLines && order.discountLines.length > 0,
             items: order.lineItems.map(item => ({
                 name: item.productName,
                 quantity: item.quantity,
@@ -86,6 +87,7 @@ app.get('/api/orders/:id', async (req, res) => {
             includesPlanting: order.lineItems.some(item => 
                 item.productName.toLowerCase().includes("planting")
             ),
+            hasDiscount: order.discountLines && order.discountLines.length > 0,
             notes: order.internalNotes?.map(n => n.content).join(", ") || "No notes",
             items: order.lineItems.map(item => ({
                 name: item.productName,
@@ -131,6 +133,7 @@ app.get('/api/customers/:customerId/orders', async (req, res) => {
             includesPlanting: order.lineItems.some(item =>   // ← Add this
                 item.productName.toLowerCase().includes("planting")
             ),
+            hasDiscount: order.discountLines && order.discountLines.length > 0,
             items: order.lineItems.map(item => ({
                 name: item.productName,
                 quantity: item.quantity,
