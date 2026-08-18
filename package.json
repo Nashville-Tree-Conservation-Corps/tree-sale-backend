@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "engines": { "node": "22" },
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "start": "node server.js",
     "test": "vitest run"
@@ -21,7 +23,7 @@
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
-    "firebase-tools": "^15.27.0",
+    "firebase-tools": "15.22.1",
     "supertest": "^7.2.2",
     "vitest": "^4.1.10"
   }
