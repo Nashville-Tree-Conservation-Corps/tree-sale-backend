@@ -1,4 +1,4 @@
-require('dotenv').config()
+require('dotenv').config({ path: ['.env.local', '.env'] })
 
 const REQUIRED_ENV = ['JWT_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_WORKSPACE_DOMAIN', 'SQUARESPACE_API_KEY']
 

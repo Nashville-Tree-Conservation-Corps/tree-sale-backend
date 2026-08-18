@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "source": ".",
+    "runtime": "nodejs22",
+    "ignore": ["test", ".git", "*.log"]
+  }
+}
