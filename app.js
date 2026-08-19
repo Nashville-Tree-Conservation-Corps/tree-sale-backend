@@ -42,10 +42,6 @@ app.post('/api/login', async (req, res) => {
         return res.status(403).json({ error: 'Forbidden' })
     }
 
-    if (payload.hd !== process.env.GOOGLE_WORKSPACE_DOMAIN) {
-        return res.status(403).json({ error: 'Forbidden' })
-    }
-
     const allowedEmails = (process.env.ALLOWED_EMAILS || '')
         .split(',')
         .map(email => email.trim().toLowerCase())

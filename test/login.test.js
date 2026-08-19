@@ -59,8 +59,8 @@ describe('POST /api/login', () => {
         expect(res.status).toBe(403)
     })
 
-    it('403s when the hosted domain does not match', async () => {
-        mockVerifyResolves(googlePayload({ hd: 'someone-else.org' }))
+    it('403s when the email_verified claim is absent', async () => {
+        mockVerifyResolves(googlePayload({ email_verified: undefined }))
         process.env.ALLOWED_EMAILS = 'staff@treeconservationcorps.org'
 
         const res = await request(app).post('/api/login').send({ credential: 'google-id-token' })
@@ -68,8 +68,28 @@ describe('POST /api/login', () => {
         expect(res.status).toBe(403)
     })
 
-    it('403s when the hosted domain claim is absent', async () => {
-        mockVerifyResolves(googlePayload({ hd: undefined }))
+    it('issues a token for an allowlisted email on another Workspace domain', async () => {
+        mockVerifyResolves(googlePayload({ email: 'bryan@tennesseetreeandshrub.com', hd: 'tennesseetreeandshrub.com' }))
+        process.env.ALLOWED_EMAILS = 'bryan@tennesseetreeandshrub.com'
+
+        const res = await request(app).post('/api/login').send({ credential: 'google-id-token' })
+
+        expect(res.status).toBe(200)
+        expect(typeof res.body.token).toBe('string')
+    })
+
+    it('issues a token for an allowlisted consumer account with no hosted domain claim', async () => {
+        mockVerifyResolves(googlePayload({ email: 'volunteer@gmail.com', hd: undefined }))
+        process.env.ALLOWED_EMAILS = 'volunteer@gmail.com'
+
+        const res = await request(app).post('/api/login').send({ credential: 'google-id-token' })
+
+        expect(res.status).toBe(200)
+        expect(typeof res.body.token).toBe('string')
+    })
+
+    it('403s for a non-allowlisted email even on the NTCC domain', async () => {
+        mockVerifyResolves(googlePayload({ email: 'intruder@treeconservationcorps.org', hd: 'treeconservationcorps.org' }))
         process.env.ALLOWED_EMAILS = 'staff@treeconservationcorps.org'
 
         const res = await request(app).post('/api/login').send({ credential: 'google-id-token' })

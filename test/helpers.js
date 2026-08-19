@@ -4,7 +4,6 @@ import { OAuth2Client } from 'google-auth-library'
 export const TEST_ENV = {
     JWT_SECRET: 'test-jwt-secret',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
-    GOOGLE_WORKSPACE_DOMAIN: 'treeconservationcorps.org',
     SQUARESPACE_API_KEY: 'test-squarespace-key',
     FRONTEND_ORIGIN: 'https://tree-sale.example.com,http://localhost:5173'
 }
