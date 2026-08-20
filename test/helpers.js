@@ -65,3 +65,38 @@ export function mockFetchOrders(orders = [squarespaceOrder()]) {
     vi.stubGlobal('fetch', fetchMock)
     return fetchMock
 }
+
+export class FakeDb {
+    // docs: { [email]: { email, uid, claimedAt } }
+    constructor(docs = {}) {
+        this.docs = docs
+    }
+
+    collection() {
+        const docs = this.docs
+        return {
+            doc: (id) => ({ id }),
+            where: (field, op, value) => ({
+                limit: () => ({
+                    get: async () => {
+                        const matches = Object.values(docs).filter(d => d[field] === value)
+                        return { empty: matches.length === 0 }
+                    }
+                })
+            })
+        }
+    }
+
+    async runTransaction(fn) {
+        const docs = this.docs
+        return fn({
+            get: async (ref) => {
+                const data = docs[ref.id]
+                return { exists: data !== undefined, data: () => data }
+            },
+            update: (ref, patch) => {
+                Object.assign(docs[ref.id], patch)
+            }
+        })
+    }
+}
