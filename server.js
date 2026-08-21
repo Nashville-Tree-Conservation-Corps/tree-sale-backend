@@ -1,6 +1,6 @@
 require('dotenv').config({ path: ['.env.local', '.env'] })
 
-const REQUIRED_ENV = ['JWT_SECRET', 'GOOGLE_CLIENT_ID', 'SQUARESPACE_API_KEY']
+const REQUIRED_ENV = ['SQUARESPACE_API_KEY', 'GOOGLE_CLOUD_PROJECT']
 
 const missing = REQUIRED_ENV.filter(name => !process.env[name])
 
