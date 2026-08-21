@@ -1,7 +1,6 @@
 const express = require('express')
 const cors = require('cors')
-const jwt = require('jsonwebtoken')
-const { OAuth2Client } = require('google-auth-library')
+const { authMiddleware } = require('./auth')
 
 const app = express()
 
@@ -13,67 +12,8 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json())
 
-const oauthClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
-
-// Exchange a Google ID token for a short-lived app JWT
-app.post('/api/login', async (req, res) => {
-    const credential = req.body && req.body.credential
-
-    if (!credential) {
-        return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    let payload
-    try {
-        const ticket = await oauthClient.verifyIdToken({
-            idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID
-        })
-        payload = ticket.getPayload()
-    } catch (error) {
-        return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    if (!payload) {
-        return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    if (payload.email_verified !== true) {
-        return res.status(403).json({ error: 'Forbidden' })
-    }
-
-    const allowedEmails = (process.env.ALLOWED_EMAILS || '')
-        .split(',')
-        .map(email => email.trim().toLowerCase())
-        .filter(Boolean)
-
-    const email = (payload.email || '').toLowerCase()
-
-    if (!allowedEmails.includes(email)) {
-        return res.status(403).json({ error: 'Forbidden' })
-    }
-
-    const token = jwt.sign({ email: payload.email }, process.env.JWT_SECRET, { expiresIn: '12h' })
-
-    res.json({ token })
-})
-
-// Everything under /api registered below this point requires the app JWT
-app.use('/api', (req, res, next) => {
-    const [scheme, token] = (req.headers.authorization || '').split(' ')
-
-    if (scheme !== 'Bearer' || !token) {
-        return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    try {
-        req.user = jwt.verify(token, process.env.JWT_SECRET)
-    } catch (error) {
-        return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    next()
-})
+// Everything under /api requires a Firebase ID token from an allowlisted user
+app.use('/api', authMiddleware)
 
 // Get ALL orders (with optional status filter)
 app.get('/api/orders', async (req, res) => {

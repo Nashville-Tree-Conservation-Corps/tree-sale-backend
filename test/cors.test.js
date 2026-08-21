@@ -10,20 +10,20 @@ describe('CORS', () => {
     it.each(['https://tree-sale.example.com', 'http://localhost:5173'])(
         'allows %s from FRONTEND_ORIGIN',
         async (origin) => {
-            const res = await request(app).options('/api/login').set('Origin', origin)
+            const res = await request(app).options('/api/orders').set('Origin', origin)
 
             expect(res.headers['access-control-allow-origin']).toBe(origin)
         }
     )
 
     it('does not allow an origin outside FRONTEND_ORIGIN', async () => {
-        const res = await request(app).options('/api/login').set('Origin', 'https://evil.example.com')
+        const res = await request(app).options('/api/orders').set('Origin', 'https://evil.example.com')
 
         expect(res.headers['access-control-allow-origin']).toBeUndefined()
     })
 
     it('does not allow every origin', async () => {
-        const res = await request(app).options('/api/login').set('Origin', 'https://evil.example.com')
+        const res = await request(app).options('/api/orders').set('Origin', 'https://evil.example.com')
 
         expect(res.headers['access-control-allow-origin']).not.toBe('*')
     })

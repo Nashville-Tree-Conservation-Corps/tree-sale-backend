@@ -1,35 +1,12 @@
 import { vi } from 'vitest'
-import { OAuth2Client } from 'google-auth-library'
 
 export const TEST_ENV = {
-    JWT_SECRET: 'test-jwt-secret',
-    GOOGLE_CLIENT_ID: 'test-google-client-id',
     SQUARESPACE_API_KEY: 'test-squarespace-key',
     FRONTEND_ORIGIN: 'https://tree-sale.example.com,http://localhost:5173'
 }
 
 export function applyTestEnv() {
     Object.assign(process.env, TEST_ENV)
-    delete process.env.ALLOWED_EMAILS
-}
-
-export function googlePayload(overrides = {}) {
-    return {
-        email: 'staff@treeconservationcorps.org',
-        email_verified: true,
-        hd: 'treeconservationcorps.org',
-        ...overrides
-    }
-}
-
-export function mockVerifyResolves(payload) {
-    return vi.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockResolvedValue({
-        getPayload: () => payload
-    })
-}
-
-export function mockVerifyRejects(message = 'Invalid token signature') {
-    return vi.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockRejectedValue(new Error(message))
 }
 
 export function squarespaceOrder(overrides = {}) {
