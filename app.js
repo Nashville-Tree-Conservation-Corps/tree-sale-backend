@@ -15,37 +15,54 @@ app.use(express.json())
 // Everything under /api requires a Firebase ID token from an allowlisted user
 app.use('/api', authMiddleware)
 
+// Squarespace returns shippingAddress: null on orders with nothing to ship
+// (in-person pickup, digital goods); fall back to the billing address.
+// customerName must stay a string: the frontend sorts and uppercases it.
+function customerFields(order) {
+    const address = order.shippingAddress ?? order.billingAddress
+    return {
+        customerName: address ? `${address.firstName} ${address.lastName}` : 'Unknown',
+        address: address?.address1 ?? null,
+        zipCode: address?.postalCode ?? null,
+        city: address?.city ?? null,
+        state: address?.state ?? null
+    }
+}
+
 // Get ALL orders (with optional status filter)
 app.get('/api/orders', async (req, res) => {
     try {
         const { status } = req.query
-        const { orders, errorStatus } = await fetchAllOrders(status ? `?fulfillmentStatus=${status}` : '')
+        const { orders, errorStatus, errorMessage } = await fetchAllOrders(status ? `?fulfillmentStatus=${status}` : '')
 
         if (errorStatus) {
-            return res.status(errorStatus).json({ error: 'Squarespace API error' })
+            return res.status(errorStatus).json({ error: errorMessage })
         }
 
-        const simplified = orders.map(order => ({
-            id: order.id,
-            customerId: order.customerId,
-            customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-            zipCode: order.shippingAddress.postalCode,
-            city: order.shippingAddress.city,
-            state: order.shippingAddress.state,
-            date: order.createdOn,
-            status: order.fulfillmentStatus,
-            includesPlanting: order.lineItems.some(item =>
-                item.productName.toLowerCase().includes("planting")
-            ),
-            hasDiscount: order.discountLines && order.discountLines.length > 0,
-            items: order.lineItems.map(item => ({
-                name: item.productName,
-                quantity: item.quantity,
-                price: item.unitPricePaid.value
-            })),
-            totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
-            total: order.grandTotal.value
-        }))
+        const simplified = orders.map(order => {
+            const { customerName, zipCode, city, state } = customerFields(order)
+            return {
+                id: order.id,
+                customerId: order.customerId,
+                customerName,
+                zipCode,
+                city,
+                state,
+                date: order.createdOn,
+                status: order.fulfillmentStatus,
+                includesPlanting: order.lineItems.some(item =>
+                    item.productName.toLowerCase().includes("planting")
+                ),
+                hasDiscount: order.discountLines && order.discountLines.length > 0,
+                items: order.lineItems.map(item => ({
+                    name: item.productName,
+                    quantity: item.quantity,
+                    price: item.unitPricePaid.value
+                })),
+                totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
+                total: order.grandTotal.value
+            }
+        })
 
         res.json(simplified)
     } catch (error) {
@@ -65,7 +82,7 @@ app.get('/api/orders/:id', async (req, res) => {
         })
 
         if (!response.ok) {
-            return res.status(response.status).json({ error: 'Squarespace API error' })
+            return res.status(response.status).json({ error: await squarespaceErrorMessage(response) })
         }
 
         const order = await response.json()
@@ -73,11 +90,7 @@ app.get('/api/orders/:id', async (req, res) => {
         const simplified = {
             id: order.id,
             customerId: order.customerId,
-            customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-            address: order.shippingAddress.address1,
-            zipCode: order.shippingAddress.postalCode,
-            city: order.shippingAddress.city,
-            state: order.shippingAddress.state,
+            ...customerFields(order),
             date: order.createdOn,
             status: order.fulfillmentStatus,
             includesPlanting: order.lineItems.some(item =>
@@ -104,33 +117,36 @@ app.get('/api/orders/:id', async (req, res) => {
 // Get all orders for a specific customer
 app.get('/api/customers/:customerId/orders', async (req, res) => {
     try {
-        const { orders, errorStatus } = await fetchAllOrders(`?customerId=${req.params.customerId}`)
+        const { orders, errorStatus, errorMessage } = await fetchAllOrders(`?customerId=${req.params.customerId}`)
 
         if (errorStatus) {
-            return res.status(errorStatus).json({ error: 'Squarespace API error' })
+            return res.status(errorStatus).json({ error: errorMessage })
         }
 
-        const simplified = orders.map(order => ({
-            id: order.id,
-            customerId: order.customerId,
-            customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-            zipCode: order.shippingAddress.postalCode,
-            city: order.shippingAddress.city,
-            state: order.shippingAddress.state,
-            date: order.createdOn,
-            status: order.fulfillmentStatus,
-            includesPlanting: order.lineItems.some(item =>   // ← Add this
-                item.productName.toLowerCase().includes("planting")
-            ),
-            hasDiscount: order.discountLines && order.discountLines.length > 0,
-            items: order.lineItems.map(item => ({
-                name: item.productName,
-                quantity: item.quantity,
-                price: item.unitPricePaid.value
-            })),
-            totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
-            total: order.grandTotal.value
-        }))
+        const simplified = orders.map(order => {
+            const { customerName, zipCode, city, state } = customerFields(order)
+            return {
+                id: order.id,
+                customerId: order.customerId,
+                customerName,
+                zipCode,
+                city,
+                state,
+                date: order.createdOn,
+                status: order.fulfillmentStatus,
+                includesPlanting: order.lineItems.some(item =>
+                    item.productName.toLowerCase().includes("planting")
+                ),
+                hasDiscount: order.discountLines && order.discountLines.length > 0,
+                items: order.lineItems.map(item => ({
+                    name: item.productName,
+                    quantity: item.quantity,
+                    price: item.unitPricePaid.value
+                })),
+                totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
+                total: order.grandTotal.value
+            }
+        })
 
         res.json(simplified)
     } catch (error) {
@@ -149,6 +165,16 @@ function seasonOf(createdOn) {
 function isValidSeason(value) {
     const match = /^(\d{4})-(\d{4})$/.exec(value)
     return match !== null && Number(match[2]) === Number(match[1]) + 1
+}
+
+// Squarespace error bodies carry a human-readable `message` field
+// ({ type, subtype, message, details }); pass it through when present.
+// Their rate limit cooldown is documented as one minute.
+async function squarespaceErrorMessage(response) {
+    const body = await response.json().catch(() => null)
+    if (body?.message) return body.message
+    if (response.status === 429) return 'Squarespace is rate limiting requests. Wait a minute, then refresh.'
+    return `Squarespace API error (status ${response.status})`
 }
 
 // Follows Squarespace's cursor pagination. `query` applies to the first
@@ -171,7 +197,7 @@ async function fetchAllOrders(query = '') {
         })
 
         if (!response.ok) {
-            return { errorStatus: response.status }
+            return { errorStatus: response.status, errorMessage: await squarespaceErrorMessage(response) }
         }
 
         const data = await response.json()
@@ -191,10 +217,10 @@ app.get('/api/sales', async (req, res) => {
     }
 
     try {
-        const { orders, errorStatus } = await fetchAllOrders()
+        const { orders, errorStatus, errorMessage } = await fetchAllOrders()
 
         if (errorStatus) {
-            return res.status(errorStatus).json({ error: 'Squarespace API error' })
+            return res.status(errorStatus).json({ error: errorMessage })
         }
 
         const bySeason = {}

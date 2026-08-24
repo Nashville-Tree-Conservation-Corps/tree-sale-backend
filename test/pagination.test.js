@@ -95,6 +95,6 @@ describe('Squarespace pagination on list routes', () => {
         const res = await request(app).get('/api/orders').set('Authorization', 'Bearer good')
 
         expect(res.status).toBe(429)
-        expect(res.body).toEqual({ error: 'Squarespace API error' })
+        expect(res.body).toEqual({ error: 'Squarespace is rate limiting requests. Wait a minute, then refresh.' })
     })
 })

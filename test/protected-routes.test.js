@@ -167,6 +167,23 @@ describe('auth middleware on the data routes', () => {
         const res = await request(app).get('/api/orders').set('Authorization', 'Bearer good')
 
         expect(res.status).toBe(429)
-        expect(res.body).toEqual({ error: 'Squarespace API error' })
+        expect(res.body).toEqual({ error: 'Squarespace is rate limiting requests. Wait a minute, then refresh.' })
+    })
+
+    it('passes the Squarespace error message through when the body has one', async () => {
+        allowSignedInUser()
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => ({
+                ok: false,
+                status: 429,
+                json: async () => ({ type: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded. Retry in 30 seconds.' })
+            }))
+        )
+
+        const res = await request(app).get('/api/orders').set('Authorization', 'Bearer good')
+
+        expect(res.status).toBe(429)
+        expect(res.body).toEqual({ error: 'Rate limit exceeded. Retry in 30 seconds.' })
     })
 })
