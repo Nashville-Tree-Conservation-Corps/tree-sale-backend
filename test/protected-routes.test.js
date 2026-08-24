@@ -136,7 +136,9 @@ describe('auth middleware on the data routes', () => {
         const res = await request(app).get('/api/sales').set('Authorization', 'Bearer good')
 
         expect(res.status).toBe(200)
-        expect(res.body).toEqual([{ name: 'Red Maple', quantity: 4 }])
+        expect(res.body.season).toBe('2025-2026')
+        expect(res.body.treesSold).toBe(4)
+        expect(res.body.byTree).toEqual([{ name: 'Red Maple', quantity: 4 }])
     })
 
     it('serves /api/orders/:id with a valid token', async () => {

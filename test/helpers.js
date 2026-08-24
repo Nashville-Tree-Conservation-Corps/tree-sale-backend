@@ -43,6 +43,29 @@ export function mockFetchOrders(orders = [squarespaceOrder()]) {
     return fetchMock
 }
 
+// Serves one page of orders per fetch call, advertising a nextPageCursor
+// until the last page, mirroring Squarespace's pagination envelope.
+export function mockFetchOrderPages(pages) {
+    let call = 0
+    const fetchMock = vi.fn(async () => {
+        const result = pages[call] ?? []
+        const hasNextPage = call < pages.length - 1
+        call += 1
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+                result,
+                pagination: hasNextPage
+                    ? { hasNextPage: true, nextPageCursor: `cursor-${call}` }
+                    : { hasNextPage: false }
+            })
+        }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+}
+
 export class FakeDb {
     // docs: { [email]: { email, uid, claimedAt } }
     constructor(docs = {}) {

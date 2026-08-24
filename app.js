@@ -158,10 +158,28 @@ app.get('/api/customers/:customerId/orders', async (req, res) => {
     }
 })
 
-// Get total quantity sold per product, ranked most to least
-app.get('/api/sales', async (req, res) => {
-    try {
-        const response = await fetch('https://api.squarespace.com/1.0/commerce/orders', {
+// A sale season runs July 1 through June 30 and is named "2026-2027"
+function seasonOf(createdOn) {
+    const date = new Date(createdOn)
+    const year = date.getUTCFullYear()
+    return date.getUTCMonth() >= 6 ? `${year}-${year + 1}` : `${year - 1}-${year}`
+}
+
+function isValidSeason(value) {
+    const match = /^(\d{4})-(\d{4})$/.exec(value)
+    return match !== null && Number(match[2]) === Number(match[1]) + 1
+}
+
+async function fetchAllOrders() {
+    const orders = []
+    let cursor = null
+
+    do {
+        const url = cursor
+            ? `https://api.squarespace.com/1.0/commerce/orders?cursor=${cursor}`
+            : 'https://api.squarespace.com/1.0/commerce/orders'
+
+        const response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${process.env.SQUARESPACE_API_KEY}`,
                 'User-Agent': 'tree-sale-app'
@@ -169,32 +187,90 @@ app.get('/api/sales', async (req, res) => {
         })
 
         if (!response.ok) {
-            return res.status(response.status).json({ error: 'Squarespace API error' })
+            return { errorStatus: response.status }
         }
 
         const data = await response.json()
+        orders.push(...data.result)
+        cursor = data.pagination?.hasNextPage ? data.pagination.nextPageCursor : null
+    } while (cursor)
 
-        // Tally quantity sold per product name, skipping the planting service
-        const totals = {}
+    return { orders }
+}
 
-        for (const order of data.result) {
+// Per-season sales stats plus a per-product breakdown, ranked most to least sold
+app.get('/api/sales', async (req, res) => {
+    const requestedSeason = req.query.season
+
+    if (requestedSeason !== undefined && !isValidSeason(requestedSeason)) {
+        return res.status(400).json({ error: 'Invalid season' })
+    }
+
+    try {
+        const { orders, errorStatus } = await fetchAllOrders()
+
+        if (errorStatus) {
+            return res.status(errorStatus).json({ error: 'Squarespace API error' })
+        }
+
+        const bySeason = {}
+
+        for (const order of orders) {
+            const season = seasonOf(order.createdOn)
+            bySeason[season] ??= {
+                totalOrders: 0,
+                fulfilledOrders: 0,
+                unfulfilledOrders: 0,
+                canceledOrders: 0,
+                treesSold: 0,
+                treeTotals: {}
+            }
+            const stats = bySeason[season]
+
+            if (order.fulfillmentStatus === 'CANCELED') {
+                stats.canceledOrders += 1
+                continue
+            }
+
+            stats.totalOrders += 1
+            if (order.fulfillmentStatus === 'FULFILLED') {
+                stats.fulfilledOrders += 1
+            } else {
+                stats.unfulfilledOrders += 1
+            }
+
             for (const item of order.lineItems) {
-                const name = item.productName
-                if (name.toLowerCase().includes("planting")) continue
-
-                if (!totals[name]) {
-                    totals[name] = 0
-                }
-                totals[name] += item.quantity
+                if (item.productName.toLowerCase().includes('planting')) continue
+                stats.treeTotals[item.productName] = (stats.treeTotals[item.productName] || 0) + item.quantity
+                stats.treesSold += item.quantity
             }
         }
 
-        // Convert to an array and sort most sold → least sold
-        const sorted = Object.entries(totals)
+        const seasons = Object.keys(bySeason).sort().reverse()
+        const season = requestedSeason ?? (seasons[0] || seasonOf(new Date().toISOString()))
+        const stats = bySeason[season] ?? {
+            totalOrders: 0,
+            fulfilledOrders: 0,
+            unfulfilledOrders: 0,
+            canceledOrders: 0,
+            treesSold: 0,
+            treeTotals: {}
+        }
+
+        const byTree = Object.entries(stats.treeTotals)
             .map(([name, quantity]) => ({ name, quantity }))
             .sort((a, b) => b.quantity - a.quantity)
 
-        res.json(sorted)
+        res.json({
+            season,
+            seasons,
+            totalOrders: stats.totalOrders,
+            fulfilledOrders: stats.fulfilledOrders,
+            unfulfilledOrders: stats.unfulfilledOrders,
+            canceledOrders: stats.canceledOrders,
+            treesSold: stats.treesSold,
+            byTree
+        })
     } catch (error) {
         console.error(error)
         res.status(500).json({ error: 'Server error fetching sales data' })
