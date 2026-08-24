@@ -19,25 +19,13 @@ app.use('/api', authMiddleware)
 app.get('/api/orders', async (req, res) => {
     try {
         const { status } = req.query
-        let url = 'https://api.squarespace.com/1.0/commerce/orders'
-        if (status) {
-            url += `?fulfillmentStatus=${status}`
+        const { orders, errorStatus } = await fetchAllOrders(status ? `?fulfillmentStatus=${status}` : '')
+
+        if (errorStatus) {
+            return res.status(errorStatus).json({ error: 'Squarespace API error' })
         }
 
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${process.env.SQUARESPACE_API_KEY}`,
-                'User-Agent': 'tree-sale-app'
-            }
-        })
-
-        if (!response.ok) {
-            return res.status(response.status).json({ error: 'Squarespace API error' })
-        }
-
-        const data = await response.json()
-
-        const simplified = data.result.map(order => ({
+        const simplified = orders.map(order => ({
             id: order.id,
             customerId: order.customerId,
             customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
@@ -116,20 +104,13 @@ app.get('/api/orders/:id', async (req, res) => {
 // Get all orders for a specific customer
 app.get('/api/customers/:customerId/orders', async (req, res) => {
     try {
-        const response = await fetch(`https://api.squarespace.com/1.0/commerce/orders?customerId=${req.params.customerId}`, {
-            headers: {
-                'Authorization': `Bearer ${process.env.SQUARESPACE_API_KEY}`,
-                'User-Agent': 'tree-sale-app'
-            }
-        })
+        const { orders, errorStatus } = await fetchAllOrders(`?customerId=${req.params.customerId}`)
 
-        if (!response.ok) {
-            return res.status(response.status).json({ error: 'Squarespace API error' })
+        if (errorStatus) {
+            return res.status(errorStatus).json({ error: 'Squarespace API error' })
         }
 
-        const data = await response.json()
-
-        const simplified = data.result.map(order => ({
+        const simplified = orders.map(order => ({
             id: order.id,
             customerId: order.customerId,
             customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
@@ -170,14 +151,17 @@ function isValidSeason(value) {
     return match !== null && Number(match[2]) === Number(match[1]) + 1
 }
 
-async function fetchAllOrders() {
+// Follows Squarespace's cursor pagination. `query` applies to the first
+// request only: the cursor encodes the original filter, and Squarespace
+// rejects cursors combined with other parameters.
+async function fetchAllOrders(query = '') {
     const orders = []
     let cursor = null
 
     do {
         const url = cursor
             ? `https://api.squarespace.com/1.0/commerce/orders?cursor=${cursor}`
-            : 'https://api.squarespace.com/1.0/commerce/orders'
+            : `https://api.squarespace.com/1.0/commerce/orders${query}`
 
         const response = await fetch(url, {
             headers: {
