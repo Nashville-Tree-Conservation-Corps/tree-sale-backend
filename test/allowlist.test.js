@@ -48,4 +48,11 @@ describe('allowlist', () => {
         expect(await allowlist.claim('staff@treeconservationcorps.org', 'uid-2')).toBe(false)
         expect(db.docs['staff@treeconservationcorps.org'].uid).toBe('uid-1')
     })
+
+    it('claim returns true when the doc is already claimed by the same uid', async () => {
+        db = seededDb({ uid: 'uid-1' })
+        allowlist.deps.db = () => db
+        expect(await allowlist.claim('staff@treeconservationcorps.org', 'uid-1')).toBe(true)
+        expect(db.docs['staff@treeconservationcorps.org'].uid).toBe('uid-1')
+    })
 })
