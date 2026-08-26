@@ -33,6 +33,7 @@ describe('/api/sales seasons', () => {
     afterEach(() => {
         vi.restoreAllMocks()
         vi.unstubAllGlobals()
+        vi.useRealTimers()
     })
 
     it('defaults to the newest season and lists all seasons newest first', async () => {
@@ -47,6 +48,18 @@ describe('/api/sales seasons', () => {
         expect(res.status).toBe(200)
         expect(res.body.season).toBe('2026-2027')
         expect(res.body.seasons).toEqual(['2026-2027', '2025-2026'])
+    })
+
+    it('defaults to the newest season with orders, not the calendar season', async () => {
+        vi.useFakeTimers({ now: new Date('2027-07-15T12:00:00.000Z'), toFake: ['Date'] })
+        mockFetchOrders([orderIn('2026-09-15T12:00:00.000Z')])
+
+        const res = await getSales()
+
+        expect(res.status).toBe(200)
+        expect(res.body.season).toBe('2026-2027')
+        expect(res.body.totalOrders).toBe(1)
+        expect(res.body.seasons).toEqual(['2026-2027'])
     })
 
     it('buckets June and July orders across the season boundary', async () => {
