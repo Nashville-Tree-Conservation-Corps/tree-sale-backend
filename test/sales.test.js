@@ -88,7 +88,8 @@ describe('/api/sales seasons', () => {
                 fulfillmentStatus: 'FULFILLED',
                 lineItems: [
                     { productName: 'Red Maple', quantity: 2, unitPricePaid: { value: '45.00' } },
-                    { productName: 'Dogwood', quantity: 3, unitPricePaid: { value: '40.00' } }
+                    { productName: 'Dogwood', quantity: 3, unitPricePaid: { value: '40.00' } },
+                    { productName: 'Tree Guard', quantity: 2, unitPricePaid: { value: '10.00' } }
                 ]
             }),
             orderIn('2025-12-01T12:00:00.000Z', {
@@ -110,6 +111,8 @@ describe('/api/sales seasons', () => {
             unfulfilledOrders: 1,
             canceledOrders: 1,
             treesSold: 7,
+            plantings: 1,
+            guards: 2,
             byTree: [
                 { name: 'Red Maple', quantity: 4 },
                 { name: 'Dogwood', quantity: 3 }
@@ -155,6 +158,8 @@ describe('/api/sales seasons', () => {
             unfulfilledOrders: 0,
             canceledOrders: 0,
             treesSold: 0,
+            plantings: 0,
+            guards: 0,
             byTree: []
         })
     })

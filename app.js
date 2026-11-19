@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const { authMiddleware } = require('./auth')
+const orderFlags = require('./orderFlags')
 
 const app = express()
 
@@ -29,6 +30,47 @@ function customerFields(order) {
     }
 }
 
+
+// Line items are one of three kinds. Only trees count toward the tree sale
+// totals; planting services and tree guards are tracked separately.
+function itemKind(productName) {
+    const name = productName.toLowerCase()
+    if (name.includes('planting')) return 'planting'
+    if (name.includes('guard')) return 'guard'
+    return 'tree'
+}
+
+function sumQuantity(order, kind) {
+    return order.lineItems
+        .filter(item => itemKind(item.productName) === kind)
+        .reduce((sum, item) => sum + item.quantity, 0)
+}
+
+// Fields shared by every order response. `orderNumber` is the customer-facing
+// number; `id` is Squarespace's long backend id and is only for routing.
+function orderSummary(order, called811) {
+    return {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerId: order.customerId,
+        date: order.createdOn,
+        status: order.fulfillmentStatus,
+        includesPlanting: order.lineItems.some(item => itemKind(item.productName) === 'planting'),
+        hasDiscount: order.discountLines && order.discountLines.length > 0,
+        called811,
+        items: order.lineItems.map(item => ({
+            name: item.productName,
+            kind: itemKind(item.productName),
+            quantity: item.quantity,
+            price: item.unitPricePaid.value
+        })),
+        totalQuantity: sumQuantity(order, 'tree'),
+        plantingQuantity: sumQuantity(order, 'planting'),
+        guardQuantity: sumQuantity(order, 'guard'),
+        total: order.grandTotal.value
+    }
+}
+
 // Get ALL orders (with optional status filter)
 app.get('/api/orders', async (req, res) => {
     try {
@@ -39,28 +81,16 @@ app.get('/api/orders', async (req, res) => {
             return res.status(errorStatus).json({ error: errorMessage })
         }
 
+        const called = await orderFlags.getCalled811Map()
+
         const simplified = orders.map(order => {
             const { customerName, zipCode, city, state } = customerFields(order)
             return {
-                id: order.id,
-                customerId: order.customerId,
+                ...orderSummary(order, called[order.id] === true),
                 customerName,
                 zipCode,
                 city,
-                state,
-                date: order.createdOn,
-                status: order.fulfillmentStatus,
-                includesPlanting: order.lineItems.some(item =>
-                    item.productName.toLowerCase().includes("planting")
-                ),
-                hasDiscount: order.discountLines && order.discountLines.length > 0,
-                items: order.lineItems.map(item => ({
-                    name: item.productName,
-                    quantity: item.quantity,
-                    price: item.unitPricePaid.value
-                })),
-                totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
-                total: order.grandTotal.value
+                state
             }
         })
 
@@ -88,29 +118,32 @@ app.get('/api/orders/:id', async (req, res) => {
         const order = await response.json()
 
         const simplified = {
-            id: order.id,
-            customerId: order.customerId,
+            ...orderSummary(order, await orderFlags.getCalled811(order.id)),
             ...customerFields(order),
-            date: order.createdOn,
-            status: order.fulfillmentStatus,
-            includesPlanting: order.lineItems.some(item =>
-                item.productName.toLowerCase().includes("planting")
-            ),
-            hasDiscount: order.discountLines && order.discountLines.length > 0,
-            notes: order.internalNotes?.map(n => n.content).join(", ") || "No notes",
-            items: order.lineItems.map(item => ({
-                name: item.productName,
-                quantity: item.quantity,
-                price: item.unitPricePaid.value
-            })),
-            totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
-            total: order.grandTotal.value
+            notes: order.internalNotes?.map(n => n.content).join(", ") || "No notes"
         }
 
         res.json(simplified)
     } catch (error) {
         console.error(error)
         res.status(500).json({ error: 'Server error fetching order' })
+    }
+})
+
+// Mark whether 811 has been called for an order
+app.put('/api/orders/:id/811', async (req, res) => {
+    const { called } = req.body ?? {}
+
+    if (typeof called !== 'boolean') {
+        return res.status(400).json({ error: 'called must be true or false' })
+    }
+
+    try {
+        await orderFlags.setCalled811(req.params.id, called, req.user?.uid)
+        res.json({ id: req.params.id, called811: called })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Server error saving 811 status' })
     }
 })
 
@@ -123,28 +156,16 @@ app.get('/api/customers/:customerId/orders', async (req, res) => {
             return res.status(errorStatus).json({ error: errorMessage })
         }
 
+        const called = await orderFlags.getCalled811Map()
+
         const simplified = orders.map(order => {
             const { customerName, zipCode, city, state } = customerFields(order)
             return {
-                id: order.id,
-                customerId: order.customerId,
+                ...orderSummary(order, called[order.id] === true),
                 customerName,
                 zipCode,
                 city,
-                state,
-                date: order.createdOn,
-                status: order.fulfillmentStatus,
-                includesPlanting: order.lineItems.some(item =>
-                    item.productName.toLowerCase().includes("planting")
-                ),
-                hasDiscount: order.discountLines && order.discountLines.length > 0,
-                items: order.lineItems.map(item => ({
-                    name: item.productName,
-                    quantity: item.quantity,
-                    price: item.unitPricePaid.value
-                })),
-                totalQuantity: order.lineItems.reduce((sum, item) => sum + item.quantity, 0),
-                total: order.grandTotal.value
+                state
             }
         })
 
@@ -233,6 +254,8 @@ app.get('/api/sales', async (req, res) => {
                 unfulfilledOrders: 0,
                 canceledOrders: 0,
                 treesSold: 0,
+                plantings: 0,
+                guards: 0,
                 treeTotals: {}
             }
             const stats = bySeason[season]
@@ -250,7 +273,15 @@ app.get('/api/sales', async (req, res) => {
             }
 
             for (const item of order.lineItems) {
-                if (item.productName.toLowerCase().includes('planting')) continue
+                const kind = itemKind(item.productName)
+                if (kind === 'planting') {
+                    stats.plantings += item.quantity
+                    continue
+                }
+                if (kind === 'guard') {
+                    stats.guards += item.quantity
+                    continue
+                }
                 stats.treeTotals[item.productName] = (stats.treeTotals[item.productName] || 0) + item.quantity
                 stats.treesSold += item.quantity
             }
@@ -264,6 +295,8 @@ app.get('/api/sales', async (req, res) => {
             unfulfilledOrders: 0,
             canceledOrders: 0,
             treesSold: 0,
+            plantings: 0,
+            guards: 0,
             treeTotals: {}
         }
 
@@ -279,6 +312,8 @@ app.get('/api/sales', async (req, res) => {
             unfulfilledOrders: stats.unfulfilledOrders,
             canceledOrders: stats.canceledOrders,
             treesSold: stats.treesSold,
+            plantings: stats.plantings,
+            guards: stats.guards,
             byTree
         })
     } catch (error) {

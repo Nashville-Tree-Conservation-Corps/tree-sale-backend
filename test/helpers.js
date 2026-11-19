@@ -5,13 +5,34 @@ export const TEST_ENV = {
     FRONTEND_ORIGIN: 'https://tree-sale.example.com,http://localhost:5173'
 }
 
+// In-memory stand-in for the Firestore-backed 811 flags. require (not import):
+// see the module-identity note in protected-routes.test.js
+const orderFlags = require('../orderFlags.js')
+
+export const flagStore = {}
+
 export function applyTestEnv() {
     Object.assign(process.env, TEST_ENV)
+    for (const key of Object.keys(flagStore)) delete flagStore[key]
+    orderFlags.deps.db = () => ({
+        collection: () => ({
+            where: () => ({
+                get: async () => ({
+                    forEach: (fn) => Object.keys(flagStore).filter(id => flagStore[id].called811).forEach(id => fn({ id }))
+                })
+            }),
+            doc: (id) => ({
+                get: async () => ({ exists: id in flagStore, data: () => flagStore[id] }),
+                set: async (data) => { flagStore[id] = { ...flagStore[id], ...data } }
+            })
+        })
+    })
 }
 
 export function squarespaceOrder(overrides = {}) {
     return {
         id: 'order-1',
+        orderNumber: '1042',
         customerId: 'cust-1',
         createdOn: '2026-03-01T12:00:00.000Z',
         fulfillmentStatus: 'PENDING',

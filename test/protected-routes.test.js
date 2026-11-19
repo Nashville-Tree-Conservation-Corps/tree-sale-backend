@@ -97,6 +97,7 @@ describe('auth middleware on the data routes', () => {
         expect(res.body).toEqual([
             {
                 id: 'order-1',
+                orderNumber: '1042',
                 customerId: 'cust-1',
                 customerName: 'Ada Lovelace',
                 zipCode: '55401',
@@ -106,11 +107,14 @@ describe('auth middleware on the data routes', () => {
                 status: 'PENDING',
                 includesPlanting: true,
                 hasDiscount: false,
+                called811: false,
                 items: [
-                    { name: 'Red Maple', quantity: 2, price: '45.00' },
-                    { name: 'Planting Service', quantity: 1, price: '75.00' }
+                    { name: 'Red Maple', kind: 'tree', quantity: 2, price: '45.00' },
+                    { name: 'Planting Service', kind: 'planting', quantity: 1, price: '75.00' }
                 ],
-                totalQuantity: 3,
+                totalQuantity: 2,
+                plantingQuantity: 1,
+                guardQuantity: 0,
                 total: '165.00'
             }
         ])
