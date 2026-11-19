@@ -1,0 +1,9 @@
+[tools]
+node = "22"
+
+[env]
+_.file = ".env.local"
+
+[tasks.verify-link]
+description = "Generate a Firebase email verification link: mise run verify-link -- email [email ...]"
+run = "node scripts/generate-verification-link.js"
