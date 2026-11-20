@@ -147,6 +147,53 @@ app.put('/api/orders/:id/811', async (req, res) => {
     }
 })
 
+// Mark an order fulfilled in Squarespace. This is one-way: the Commerce API
+// has no "unfulfill", so only PENDING orders are accepted and customers are
+// not emailed (these are pickup/event orders; Squarespace's own email would
+// otherwise claim the order shipped).
+app.post('/api/orders/:id/fulfill', async (req, res) => {
+    const headers = {
+        'Authorization': `Bearer ${process.env.SQUARESPACE_API_KEY}`,
+        'User-Agent': 'tree-sale-app'
+    }
+    const orderUrl = `https://api.squarespace.com/1.0/commerce/orders/${encodeURIComponent(req.params.id)}`
+
+    try {
+        const current = await fetch(orderUrl, { headers })
+
+        if (!current.ok) {
+            return res.status(current.status).json({ error: await squarespaceErrorMessage(current) })
+        }
+
+        const { fulfillmentStatus } = await current.json()
+
+        if (fulfillmentStatus !== 'PENDING') {
+            return res.status(409).json({ error: `Order is already ${fulfillmentStatus.toLowerCase()}` })
+        }
+
+        const response = await fetch(`${orderUrl}/fulfillments`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shouldSendNotification: false, shipments: [] })
+        })
+
+        if (response.status === 401 || response.status === 403) {
+            return res.status(502).json({
+                error: 'Squarespace refused the update. The API key needs Orders read and write permission.'
+            })
+        }
+
+        if (!response.ok) {
+            return res.status(response.status).json({ error: await squarespaceErrorMessage(response) })
+        }
+
+        res.json({ id: req.params.id, status: 'FULFILLED' })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Server error fulfilling order' })
+    }
+})
+
 // Get all orders for a specific customer
 app.get('/api/customers/:customerId/orders', async (req, res) => {
     try {
