@@ -26,7 +26,9 @@ function customerFields(order) {
         address: address?.address1 ?? null,
         zipCode: address?.postalCode ?? null,
         city: address?.city ?? null,
-        state: address?.state ?? null
+        state: address?.state ?? null,
+        // The shipping phone is sometimes blank while billing has one
+        phone: order.shippingAddress?.phone || order.billingAddress?.phone || null
     }
 }
 
@@ -84,13 +86,14 @@ app.get('/api/orders', async (req, res) => {
         const called = await orderFlags.getCalled811Map()
 
         const simplified = orders.map(order => {
-            const { customerName, zipCode, city, state } = customerFields(order)
+            const { customerName, zipCode, city, state, phone } = customerFields(order)
             return {
                 ...orderSummary(order, called[order.id] === true),
                 customerName,
                 zipCode,
                 city,
-                state
+                state,
+                phone
             }
         })
 
@@ -206,13 +209,14 @@ app.get('/api/customers/:customerId/orders', async (req, res) => {
         const called = await orderFlags.getCalled811Map()
 
         const simplified = orders.map(order => {
-            const { customerName, zipCode, city, state } = customerFields(order)
+            const { customerName, zipCode, city, state, phone } = customerFields(order)
             return {
                 ...orderSummary(order, called[order.id] === true),
                 customerName,
                 zipCode,
                 city,
-                state
+                state,
+                phone
             }
         })
 

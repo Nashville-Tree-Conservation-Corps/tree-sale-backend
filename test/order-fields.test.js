@@ -63,3 +63,40 @@ describe('order number, item kinds, and 811 flag', () => {
         expect(res.status).toBe(401)
     })
 })
+
+describe('phone number', () => {
+    beforeEach(() => {
+        applyTestEnv()
+        deps.verifyIdToken = vi.fn().mockResolvedValue({ uid: 'uid-1', email: 'a@b.org', email_verified: true })
+        deps.isPinned = vi.fn().mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+        vi.restoreAllMocks()
+        vi.unstubAllGlobals()
+    })
+
+    const address = (phone) => ({
+        firstName: 'Ada', lastName: 'Lovelace', address1: '1 Oak St',
+        postalCode: '37206', city: 'Nashville', state: 'TN', phone
+    })
+
+    it('returns the shipping phone on the list and the single order', async () => {
+        mockFetchOrders([squarespaceOrder({ shippingAddress: address('6155550123') })])
+        expect((await get('/api/orders')).body[0].phone).toBe('6155550123')
+
+        const single = squarespaceOrder({ shippingAddress: address('6155550123') })
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => single })))
+        expect((await get('/api/orders/order-1')).body.phone).toBe('6155550123')
+    })
+
+    it('falls back to the billing phone when shipping has none', async () => {
+        mockFetchOrders([squarespaceOrder({ shippingAddress: address(''), billingAddress: address('6155550199') })])
+        expect((await get('/api/orders')).body[0].phone).toBe('6155550199')
+    })
+
+    it('is null when no phone is on file', async () => {
+        mockFetchOrders([squarespaceOrder({ shippingAddress: null, billingAddress: null })])
+        expect((await get('/api/orders')).body[0].phone).toBeNull()
+    })
+})
