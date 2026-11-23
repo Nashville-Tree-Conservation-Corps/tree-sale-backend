@@ -103,6 +103,7 @@ describe('auth middleware on the data routes', () => {
                 zipCode: '55401',
                 city: 'Minneapolis',
                 state: 'MN',
+                phone: null,
                 date: '2026-03-01T12:00:00.000Z',
                 status: 'PENDING',
                 includesPlanting: true,
