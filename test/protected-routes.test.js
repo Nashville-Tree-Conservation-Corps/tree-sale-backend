@@ -99,6 +99,7 @@ describe('auth middleware on the data routes', () => {
                 id: 'order-1',
                 orderNumber: '1042',
                 customerId: 'cust-1',
+                address: '1 Oak St',
                 customerName: 'Ada Lovelace',
                 zipCode: '55401',
                 city: 'Minneapolis',
