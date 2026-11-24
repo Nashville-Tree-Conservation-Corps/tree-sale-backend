@@ -110,8 +110,8 @@ describe('auth middleware on the data routes', () => {
                 hasDiscount: false,
                 called811: false,
                 items: [
-                    { name: 'Red Maple', kind: 'tree', quantity: 2, price: '45.00' },
-                    { name: 'Planting Service', kind: 'planting', quantity: 1, price: '75.00' }
+                    { name: 'Red Maple', variant: null, customizations: [], kind: 'tree', quantity: 2, price: '45.00' },
+                    { name: 'Planting Service', variant: null, customizations: [], kind: 'planting', quantity: 1, price: '75.00' }
                 ],
                 totalQuantity: 2,
                 plantingQuantity: 1,

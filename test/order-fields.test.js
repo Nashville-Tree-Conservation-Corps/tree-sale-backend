@@ -100,3 +100,54 @@ describe('phone number', () => {
         expect((await get('/api/orders')).body[0].phone).toBeNull()
     })
 })
+
+describe('item size variations', () => {
+    beforeEach(() => {
+        applyTestEnv()
+        deps.verifyIdToken = vi.fn().mockResolvedValue({ uid: 'uid-1', email: 'a@b.org', email_verified: true })
+        deps.isPinned = vi.fn().mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+        vi.restoreAllMocks()
+        vi.unstubAllGlobals()
+    })
+
+    const oak = (size, quantity = 1) => ({
+        productName: 'White Oak',
+        quantity,
+        unitPricePaid: { value: '150.00' },
+        variantOptions: [{ optionName: 'Size', value: size }]
+    })
+
+    it('passes the variation and customizations through on each item', async () => {
+        const item = { ...oak('3 inch'), customizations: [{ label: 'Note', value: 'Back yard' }] }
+        mockFetchOrders([squarespaceOrder({ lineItems: [item] })])
+
+        const res = await get('/api/orders')
+
+        expect(res.body[0].items[0]).toMatchObject({
+            name: 'White Oak',
+            variant: 'Size: 3 inch',
+            customizations: ['Note: Back yard']
+        })
+    })
+
+    it('has no variant for plain products', async () => {
+        mockFetchOrders([squarespaceOrder()])
+        const res = await get('/api/orders')
+        expect(res.body[0].items[0].variant).toBeNull()
+    })
+
+    it('keeps sizes of the same tree separate in the sales totals', async () => {
+        mockFetchOrders([squarespaceOrder({ lineItems: [oak('3 inch', 2), oak('1.5 inch', 5), oak('3 inch', 1)] })])
+
+        const res = await get('/api/sales')
+
+        expect(res.body.byTree).toEqual([
+            { name: 'White Oak (Size: 1.5 inch)', quantity: 5 },
+            { name: 'White Oak (Size: 3 inch)', quantity: 3 }
+        ])
+        expect(res.body.treesSold).toBe(8)
+    })
+})
