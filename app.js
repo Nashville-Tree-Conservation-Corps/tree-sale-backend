@@ -110,10 +110,11 @@ app.get('/api/orders', async (req, res) => {
         const called = await orderFlags.getCalled811Map()
 
         const simplified = orders.map(order => {
-            const { customerName, zipCode, city, state, phone } = customerFields(order)
+            const { customerName, address, zipCode, city, state, phone } = customerFields(order)
             return {
                 ...orderSummary(order, called[order.id] === true),
                 customerName,
+                address,
                 zipCode,
                 city,
                 state,
@@ -233,10 +234,11 @@ app.get('/api/customers/:customerId/orders', async (req, res) => {
         const called = await orderFlags.getCalled811Map()
 
         const simplified = orders.map(order => {
-            const { customerName, zipCode, city, state, phone } = customerFields(order)
+            const { customerName, address, zipCode, city, state, phone } = customerFields(order)
             return {
                 ...orderSummary(order, called[order.id] === true),
                 customerName,
+                address,
                 zipCode,
                 city,
                 state,
