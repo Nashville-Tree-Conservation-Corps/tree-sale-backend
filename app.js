@@ -42,6 +42,28 @@ function itemKind(productName) {
     return 'tree'
 }
 
+// Squarespace sends product options (e.g. Size: 3 inch) as variantOptions and
+// any customer-typed text as customizations. Neither is part of productName, so
+// without these two the app can't tell a 3" tree from a smaller one.
+function itemVariant(item) {
+    const options = (item.variantOptions ?? [])
+        .filter(option => option.optionName && option.value)
+        .map(option => `${option.optionName}: ${option.value}`)
+    return options.length > 0 ? options.join(', ') : null
+}
+
+function itemCustomizations(item) {
+    return (item.customizations ?? [])
+        .filter(c => c.label && c.value)
+        .map(c => `${c.label}: ${c.value}`)
+}
+
+// Name used to tell items apart when totaling, e.g. "White Oak (Size: 3 inch)"
+function itemLabel(item) {
+    const variant = itemVariant(item)
+    return variant ? `${item.productName} (${variant})` : item.productName
+}
+
 function sumQuantity(order, kind) {
     return order.lineItems
         .filter(item => itemKind(item.productName) === kind)
@@ -62,6 +84,8 @@ function orderSummary(order, called811) {
         called811,
         items: order.lineItems.map(item => ({
             name: item.productName,
+            variant: itemVariant(item),
+            customizations: itemCustomizations(item),
             kind: itemKind(item.productName),
             quantity: item.quantity,
             price: item.unitPricePaid.value
@@ -333,7 +357,8 @@ app.get('/api/sales', async (req, res) => {
                     stats.guards += item.quantity
                     continue
                 }
-                stats.treeTotals[item.productName] = (stats.treeTotals[item.productName] || 0) + item.quantity
+                const label = itemLabel(item)
+                stats.treeTotals[label] = (stats.treeTotals[label] || 0) + item.quantity
                 stats.treesSold += item.quantity
             }
         }
